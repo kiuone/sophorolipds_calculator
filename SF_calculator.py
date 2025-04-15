@@ -290,19 +290,13 @@ def calcular_inverso(soforo_desejado, params, composicao_oleo):
     return calcular_processo(params, composicao_oleo)
 
 def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv):
-    # Calcula glicose necessária para atingir a meta
+    # Parte 1: Cálculo da massa de óleo necessária (mantido igual)
     glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']
-    
-    # Mols de glicose
     mols_glicose = glicose_necessaria / (MM['glicose'] / 1000)
-    
-    # Mols de ácido oleico necessários (estequiometria 4:1)
     mols_oleico_necessario = mols_glicose / 4
-    
-    # Massa de ácido oleico necessária
     massa_oleico_necessaria = mols_oleico_necessario * (MM['acidoOleico'] / 1000)
     
-    # Calcula efetividade do óleo baseado na composição
+    # Cálculo da efetividade do óleo
     pOleic = composicao_oleo_inv[0]
     pLinoleic = composicao_oleo_inv[1]
     pLinolenic = composicao_oleo_inv[3]
@@ -315,56 +309,47 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
         (pLinolenic / 100) * (mLinolenic / 100)
     )
     
-    # Massa de óleo total necessária
     massa_oleo_total_necessaria = massa_oleico_necessaria / efetividade
     
-    # Calcula volume do fermentador baseado na concentração típica de soforolipídeos
+    # Parte 2: Cálculo dos volumes seguindo a lógica industrial
+    # Fermentador baseado na concentração desejada
     conc_soforolipideo_tipica = params_inv['conc_soforolipideo_alvo'] if 'conc_soforolipideo_alvo' in params_inv else 20  # g/L
     volume_fermentador = massa_soforolipideo_alvo * 1000 / conc_soforolipideo_tipica
     
-    # Arredonda para múltiplo de 100 L mais próximo se for grande, ou 10 L se for pequeno
+    # Arredondamento do volume do fermentador para múltiplos práticos
     if volume_fermentador > 1000:
         volume_fermentador = round(volume_fermentador / 100) * 100
     else:
         volume_fermentador = round(volume_fermentador / 10) * 10
     
-    # Calcula o volume do seed baseado na proporção do inóculo, mas garantindo escala realista
-    # O seed deve ser entre 5% e 15% do fermentador, no mínimo 3x o volume do inóculo
-    min_volume_seed = volume_fermentador * params_inv['prop_inoculo_seed'] * 3
-    # Seed é entre 5-15% do fermentador, baseado no tamanho do fermentador
-    prop_base = 0.1  # 10% como base
-    if volume_fermentador > 5000:
-        prop_base = 0.05  # 5% para fermentadores muito grandes
-    elif volume_fermentador < 1000:
-        prop_base = 0.15  # 15% para fermentadores pequenos
+    # Obter o fator de segurança (padrão: 50%)
+    fator_seguranca = params_inv.get('fator_seguranca', 50) / 100  # Converte de % para decimal
     
-    volume_seed = max(50, volume_fermentador * prop_base)  # Mínimo de 50L
-    volume_seed = max(volume_seed, min_volume_seed)  # Garantir volume mínimo para inóculo
+    # Cálculo do volume do seed baseado na proporção de inóculo e fator de segurança
+    volume_inoculo_seed = volume_fermentador * params_inv['prop_inoculo_seed']
+    volume_seed = volume_inoculo_seed * (1 + fator_seguranca)
     
-    # Arredonda para múltiplo de 5 ou 10L
+    # Arredondamento do volume do seed
     if volume_seed > 100:
         volume_seed = round(volume_seed / 10) * 10
     else:
         volume_seed = round(volume_seed / 5) * 5
     
-    # Calcula o volume do frasco baseado na proporção do inóculo para o seed
-    min_volume_frasco = volume_seed * params_inv['prop_inoculo_frasco'] * 3
+    # Garantir que o seed tenha pelo menos 50L ou 1% do fermentador
+    volume_seed = max(50, volume_seed, volume_fermentador * 0.01)
     
-    # Frasco é entre 2-10% do seed, baseado no tamanho do seed
-    prop_frasco = 0.05  # 5% como base
-    if volume_seed > 500:
-        prop_frasco = 0.02  # 2% para seeds muito grandes
-    elif volume_seed < 100:
-        prop_frasco = 0.1  # 10% para seeds pequenos
+    # Cálculo do volume do frasco baseado na proporção de inóculo e fator de segurança
+    volume_inoculo_frasco = volume_seed * params_inv['prop_inoculo_frasco']
+    volume_frasco = volume_inoculo_frasco * (1 + fator_seguranca)
     
-    volume_frasco = max(1, volume_seed * prop_frasco)
-    volume_frasco = max(volume_frasco, min_volume_frasco)  # Garantir volume mínimo para inóculo
-    
-    # Arredonda de forma apropriada
+    # Arredondamento do volume do frasco
     if volume_frasco < 10:
         volume_frasco = round(volume_frasco * 10) / 10  # Arredonda para 0.1L
     else:
-        volume_frasco = round(volume_frasco)  # Arredonda para o litro mais próximo
+        volume_frasco = round(volume_frasco)  # Arredonda para o litro
+    
+    # Garantir que o frasco tenha pelo menos 1L ou 1% do seed
+    volume_frasco = max(1, volume_frasco, volume_seed * 0.01)
     
     # Atualiza os parâmetros
     params_inv['volume_fermentador'] = volume_fermentador
@@ -582,6 +567,13 @@ def main():
 
     with tab2:
         st.header("Cálculo Inverso: Quantidade de insumos necessários para a meta de produção")
+        st.info("""
+        O dimensionamento dos biorreatores segue a lógica industrial:
+        1. O volume do fermentador é calculado com base na meta de produção e concentração desejada
+        2. O volume do seed é calculado com base na proporção de inóculo necessária
+        3. O volume do frasco é calculado com base na proporção de inóculo necessária
+        O fator de segurança aumenta os volumes calculados para garantir quantidade suficiente de inóculo.
+        """)
 
         # Organizar em 3 colunas com 4 linhas cada
         col1, col2, col3 = st.columns(3)
@@ -602,22 +594,32 @@ def main():
             params_inv['prop_glicose_biomassa'] = st.number_input('Prop. Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100
             params_inv['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", key='rb2')
             params_inv['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f", key='rs2')
-            # params_inv['prop_frasco_seed'] = st.number_input('Proporção do Frasco/Seed (%)', 
-            #                                     min_value=1.0, max_value=10.0, 
-            #                                     value=5.0, format="%.1f", key='pfs2') / 100
+            params_inv['ferment_time'] = st.number_input('Tempo Fermentação (h)', value=168.0, format="%.2f", key='ft2')
 
         # Coluna 3
         with col3:
-            params_inv['ferment_time'] = st.number_input('Tempo Fermentação (h)', value=168.0, format="%.2f", key='ft2')
             params_inv['seed_time'] = st.number_input('Tempo Incubação Seed (h)', value=24.0, format="%.2f", key='st2')
-            params_inv['prop_inoculo_frasco'] = st.number_input('Prop. Inóculo Frasco→Seed', value=0.01, format="%.2f", key='pif2')
-            params_inv['prop_inoculo_seed'] = st.number_input('Prop. Inóculo Seed→Ferm.', value=0.1, format="%.2f", key='pis2')
-            # params_inv['prop_seed_fermentador'] = st.number_input('Proporção do Seed/Fermentador (%)', 
-            #                                                     min_value=5.0, max_value=15.0, 
-            #                                                     value=10.0, format="%.1f", key='psf2') / 100
-
-
-
+            
+            # Proporções de inóculo (usadas para calcular volume dos biorreatores)
+            prop_inoculo_frasco_perc = st.number_input('Prop. Inóculo Frasco→Seed (%)', 
+                                                    value=1.0, min_value=0.1, max_value=20.0, format="%.1f", 
+                                                    help="Percentual do volume do Seed que será inoculado a partir do frasco", 
+                                                    key='pif2')
+            params_inv['prop_inoculo_frasco'] = prop_inoculo_frasco_perc / 100
+            
+            prop_inoculo_seed_perc = st.number_input('Prop. Inóculo Seed→Ferm. (%)', 
+                                                value=10.0, min_value=1.0, max_value=30.0, format="%.1f", 
+                                                help="Percentual do volume do Fermentador que será inoculado a partir do seed", 
+                                                key='pis2')
+            params_inv['prop_inoculo_seed'] = prop_inoculo_seed_perc / 100
+            
+            # Fator de segurança para dimensionamento
+            fator_seguranca = st.number_input('Fator de Segurança (%)', 
+                                            value=50.0, min_value=10.0, max_value=200.0, format="%.1f", 
+                                            help="Percentual adicional de volume para garantir inóculo suficiente", 
+                                            key='fs2')
+            params_inv['fator_seguranca'] = fator_seguranca
+            
         with st.expander("Composição do Óleo", expanded=False):
             composicao_oleo_inv = [
                 st.number_input('Ácido Oleico (%)', value=25.0, format="%.2f", key='ao2'),

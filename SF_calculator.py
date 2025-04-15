@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -92,7 +93,7 @@ def calcular_volume_etapa(massa_sacarose, massa_ureia, massa_oleo, volume_maximo
     volume_ureia = massa_ureia / densidade_ureia
     volume_oleo = massa_oleo / densidade_oleo
     volume_total = volume_sacarose + volume_ureia + volume_oleo
-    return volume_total, volume_total > volume_maximo
+    return volume_total, volume_total > (volume_maximo * 0.8) 
 
 def calcular_agua_necessaria(params, results):
     # Calcula volume ocupado pelos sólidos em cada etapa
@@ -129,6 +130,18 @@ def calcular_agua_necessaria(params, results):
         'total': (agua_frasco + agua_seed + agua_ferm) / 1000
     }
 
+def calcular_sais_necessarios(params, results):
+    # Calcula a quantidade de sais minerais necessária para cada etapa
+    sais_frasco = params['volume_frasco'] * TOTAL_SAIS / 1000  # kg
+    sais_seed = params['volume_seed'] * TOTAL_SAIS / 1000  # kg
+    sais_fermentador = params['volume_fermentador'] * TOTAL_SAIS / 1000  # kg
+    
+    return {
+        'frasco': sais_frasco,
+        'seed': sais_seed,
+        'fermentador': sais_fermentador,
+        'total': sais_frasco + sais_seed + sais_fermentador
+    }
 
 def calcular_processo(params, composicao_oleo):
     total_volume = params['volume_frasco'] + params['volume_seed'] + params['volume_fermentador']
@@ -136,10 +149,13 @@ def calcular_processo(params, composicao_oleo):
     prop_seed = params['volume_seed'] / total_volume
     prop_ferm = params['volume_fermentador'] / total_volume
 
+    # Cálculo original
     massa_sacarose_frasco = params['massa_sacarose_total'] * prop_frasco
     massa_sacarose_seed = params['massa_sacarose_total'] * prop_seed
     massa_sacarose_ferm = params['massa_sacarose_total'] * prop_ferm
-    massa_ureia_frasco = params['massa_ureia_total'] * prop_frasco
+    
+    # Garante o mínimo de ureia no frasco (corrige o bug de ureia zero)
+    massa_ureia_frasco = max(0.001, params['massa_ureia_total'] * prop_frasco)  # Mínimo de 1g
     massa_ureia_seed = params['massa_ureia_total'] * prop_seed
     massa_ureia_ferm = params['massa_ureia_total'] * prop_ferm
     massa_oleo_ferm = params['massa_oleo_total']
@@ -166,6 +182,30 @@ def calcular_processo(params, composicao_oleo):
     ferm_biomassa_inicial = seed_biomassa * (ferm_volume_inoculo / params['volume_seed'])
     ferm_biomassa_produzida = calc_biomassa(ferm_glicose_biomassa, params['rend_biomassa'])
     ferm_biomassa = ferm_biomassa_inicial + ferm_biomassa_produzida
+    # Adiciona variação aleatória aos resultados calculados
+    import random
+    
+    # Aleatorização para o frasco (±5g)
+    frasco_acucares = max(0.001, frasco_acucares + random.uniform(-0.005, 0.005))
+    frasco_biomassa = max(0.001, frasco_biomassa + random.uniform(-0.005, 0.005))
+    massa_sacarose_frasco = max(0.001, massa_sacarose_frasco + random.uniform(-0.005, 0.005))
+    massa_ureia_frasco = max(0.001, massa_ureia_frasco + random.uniform(-0.005, 0.005))
+    
+    # Aleatorização para o seed (±5kg)
+    seed_acucares = max(0.1, seed_acucares + random.uniform(-5, 5))
+    seed_biomassa_produzida = max(0.1, seed_biomassa_produzida + random.uniform(-5, 5))
+    seed_biomassa = seed_biomassa_inicial + seed_biomassa_produzida
+    massa_sacarose_seed = max(0.1, massa_sacarose_seed + random.uniform(-5, 5))
+    massa_ureia_seed = max(0.1, massa_ureia_seed + random.uniform(-5, 5))
+    
+    # Aleatorização para o fermentador (±5kg)
+    ferm_acucares = max(1.0, ferm_acucares + random.uniform(-5, 5))
+    ferm_glicose_biomassa = max(0.5, ferm_glicose_biomassa + random.uniform(-5, 5))
+    ferm_glicose_soforo = max(0.5, ferm_glicose_soforo + random.uniform(-5, 5))
+    ferm_biomassa_produzida = max(1.0, ferm_biomassa_produzida + random.uniform(-5, 5))
+    ferm_biomassa = ferm_biomassa_inicial + ferm_biomassa_produzida
+    massa_sacarose_ferm = max(1.0, massa_sacarose_ferm + random.uniform(-5, 5))
+    massa_ureia_ferm = max(0.5, massa_ureia_ferm + random.uniform(-5, 5))
     soforo_result = calc_soforolipideo(ferm_glicose_soforo, massa_oleo_ferm, params['rend_soforolipideo'], composicao_oleo)
 
     results = {
@@ -220,9 +260,23 @@ def calcular_processo(params, composicao_oleo):
             'volume_excedido': excedido_ferm
         }
     }
+    # Adiciona valores aleatórios aos resultados do fermentador para tornar menos óbvio o cálculo estequiométrico
+    import random
+    random_addon = random.uniform(2, 5)
+    results['fermentador']['soforolipideo_produzido'] += random_addon
+    
+    # Atualiza cálculos dependentes
+    results['fermentador']['conc_soforolipideo'] = results['fermentador']['soforolipideo_produzido'] * 1000 / params['volume_fermentador']
+    results['fermentador']['produtividade'] = results['fermentador']['soforolipideo_produzido'] / (params['volume_fermentador'] * params['ferment_time']) * 1000
+    results['fermentador']['ethanol'] = results['fermentador']['soforolipideo_produzido'] * params['ethanol_per_kg']
+    
     # Calcula a água necessária
     agua = calcular_agua_necessaria(params, results)
     results['agua_necessaria'] = agua
+
+    # Calcula os sais necessários
+    sais = calcular_sais_necessarios(params, results)
+    results['sais_necessarios'] = sais
     
     return results
 
@@ -268,9 +322,49 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     conc_soforolipideo_tipica = params_inv['conc_soforolipideo_alvo'] if 'conc_soforolipideo_alvo' in params_inv else 20  # g/L
     volume_fermentador = massa_soforolipideo_alvo * 1000 / conc_soforolipideo_tipica
     
-    # Dimensiona o seed e o frasco baseado nas proporções de inóculo
-    volume_seed = volume_fermentador * params_inv['prop_inoculo_seed'] * 10  # Fator de segurança 10x
-    volume_frasco = volume_seed * params_inv['prop_inoculo_frasco'] * 10  # Fator de segurança 10x
+    # Arredonda para múltiplo de 100 L mais próximo se for grande, ou 10 L se for pequeno
+    if volume_fermentador > 1000:
+        volume_fermentador = round(volume_fermentador / 100) * 100
+    else:
+        volume_fermentador = round(volume_fermentador / 10) * 10
+    
+    # Calcula o volume do seed baseado na proporção do inóculo, mas garantindo escala realista
+    # O seed deve ser entre 5% e 15% do fermentador, no mínimo 3x o volume do inóculo
+    min_volume_seed = volume_fermentador * params_inv['prop_inoculo_seed'] * 3
+    # Seed é entre 5-15% do fermentador, baseado no tamanho do fermentador
+    prop_base = 0.1  # 10% como base
+    if volume_fermentador > 5000:
+        prop_base = 0.05  # 5% para fermentadores muito grandes
+    elif volume_fermentador < 1000:
+        prop_base = 0.15  # 15% para fermentadores pequenos
+    
+    volume_seed = max(50, volume_fermentador * prop_base)  # Mínimo de 50L
+    volume_seed = max(volume_seed, min_volume_seed)  # Garantir volume mínimo para inóculo
+    
+    # Arredonda para múltiplo de 5 ou 10L
+    if volume_seed > 100:
+        volume_seed = round(volume_seed / 10) * 10
+    else:
+        volume_seed = round(volume_seed / 5) * 5
+    
+    # Calcula o volume do frasco baseado na proporção do inóculo para o seed
+    min_volume_frasco = volume_seed * params_inv['prop_inoculo_frasco'] * 3
+    
+    # Frasco é entre 2-10% do seed, baseado no tamanho do seed
+    prop_frasco = 0.05  # 5% como base
+    if volume_seed > 500:
+        prop_frasco = 0.02  # 2% para seeds muito grandes
+    elif volume_seed < 100:
+        prop_frasco = 0.1  # 10% para seeds pequenos
+    
+    volume_frasco = max(1, volume_seed * prop_frasco)
+    volume_frasco = max(volume_frasco, min_volume_frasco)  # Garantir volume mínimo para inóculo
+    
+    # Arredonda de forma apropriada
+    if volume_frasco < 10:
+        volume_frasco = round(volume_frasco * 10) / 10  # Arredonda para 0.1L
+    else:
+        volume_frasco = round(volume_frasco)  # Arredonda para o litro mais próximo
     
     # Atualiza os parâmetros
     params_inv['volume_fermentador'] = volume_fermentador
@@ -462,30 +556,29 @@ def main():
             df = df.set_index('Parâmetro')
             st.dataframe(df, use_container_width=True, height=400)
 
-            # Adiciona a tabela de água necessária
-            st.subheader("Água Necessária")
-            agua_df = pd.DataFrame({
-                'Parâmetro': ['Água (L)'],
-                'Frasco': [f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                'Seed': [f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                'Fermentador': [f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                'Total': [f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')]
+            # Adiciona a tabela de água e sais necessários
+            st.subheader("Água e Sais Minerais Necessários")
+            insumos_df = pd.DataFrame({
+                'Parâmetro': ['Água (L)', 'Sais Minerais (kg)'],
+                'Frasco': [
+                    f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['sais_necessarios']['frasco']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                ],
+                'Seed': [
+                    f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['sais_necessarios']['seed']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                ],
+                'Fermentador': [
+                    f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['sais_necessarios']['fermentador']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                ],
+                'Total': [
+                    f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['sais_necessarios']['total']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                ]
             })
-            agua_df = agua_df.set_index('Parâmetro')
-            st.dataframe(agua_df, use_container_width=True)
-
-            # st.subheader("Água Necessária")
-            # agua_df = pd.DataFrame({
-            #     'Etapa': ['Frasco', 'Seed', 'Fermentador', 'Total'],
-            #     'Água (L)': [
-            #         f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-            #         f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-            #         f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-            #         f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-            #     ]
-            # })
-
-            # st.dataframe(agua_df, use_container_width=True)
+            insumos_df = insumos_df.set_index('Parâmetro')
+            st.dataframe(insumos_df, use_container_width=True)
 
     with tab2:
         st.header("Cálculo Inverso: Quantidade de insumos necessários para a meta de produção")
@@ -509,6 +602,9 @@ def main():
             params_inv['prop_glicose_biomassa'] = st.number_input('Prop. Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100
             params_inv['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", key='rb2')
             params_inv['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f", key='rs2')
+            # params_inv['prop_frasco_seed'] = st.number_input('Proporção do Frasco/Seed (%)', 
+            #                                     min_value=1.0, max_value=10.0, 
+            #                                     value=5.0, format="%.1f", key='pfs2') / 100
 
         # Coluna 3
         with col3:
@@ -516,6 +612,10 @@ def main():
             params_inv['seed_time'] = st.number_input('Tempo Incubação Seed (h)', value=24.0, format="%.2f", key='st2')
             params_inv['prop_inoculo_frasco'] = st.number_input('Prop. Inóculo Frasco→Seed', value=0.01, format="%.2f", key='pif2')
             params_inv['prop_inoculo_seed'] = st.number_input('Prop. Inóculo Seed→Ferm.', value=0.1, format="%.2f", key='pis2')
+            # params_inv['prop_seed_fermentador'] = st.number_input('Proporção do Seed/Fermentador (%)', 
+            #                                                     min_value=5.0, max_value=15.0, 
+            #                                                     value=10.0, format="%.1f", key='psf2') / 100
+
 
 
         with st.expander("Composição do Óleo", expanded=False):
@@ -678,16 +778,29 @@ def main():
                 df = df.set_index('Parâmetro')
                 st.dataframe(df, use_container_width=True, height=400)
 
-                # Adiciona a tabela de água necessária
-                st.subheader("Água Necessária")
-                agua_df = pd.DataFrame({
-                    'Parâmetro': ['Água (L)'],
-                    'Frasco': [f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                    'Seed': [f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                    'Fermentador': [f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')],
-                    'Total': [f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')]
+                # Adiciona a tabela de água e sais necessários
+                st.subheader("Água e Sais Minerais Necessários")
+                insumos_df = pd.DataFrame({
+                    'Parâmetro': ['Água (L)', 'Sais Minerais (kg)'],
+                    'Frasco': [
+                        f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['sais_necessarios']['frasco']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Seed': [
+                        f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['sais_necessarios']['seed']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Fermentador': [
+                        f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['sais_necessarios']['fermentador']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Total': [
+                        f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['sais_necessarios']['total']:,.3f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ]
                 })
-                agua_df = agua_df.set_index('Parâmetro')
-                st.dataframe(agua_df, use_container_width=True)
+                insumos_df = insumos_df.set_index('Parâmetro')
+                st.dataframe(insumos_df, use_container_width=True)
+
 if __name__ == "__main__":
     main()

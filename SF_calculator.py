@@ -372,178 +372,178 @@ def main():
             st.dataframe(df, use_container_width=True, height=600)
 
     with tab2:
-with tab2:
-    st.header("📈 Cálculo Inverso: Quantidade de insumos necessária para uma meta de produção")
-    
-    massa_soforolipideo_alvo = st.number_input("🎯 Meta de Soforolipídeo (kg)", value=100.0, format="%.2f", key='sd2')
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        params_inv = {}
-        params_inv['volume_frasco'] = st.number_input('Volume Frasco (L)', value=1.0, format="%.2f", key='vf2')
-        params_inv['volume_seed'] = st.number_input('Volume Seed (L)', value=500.0, format="%.2f", key='vs2')
-        params_inv['volume_fermentador'] = st.number_input('Volume Fermentador (L)', value=5000.0, format="%.2f", key='vferm2')
-        params_inv['massa_sacarose_total'] = st.number_input('Massa de Sacarose (kg)', value=500.0, format="%.2f", key='ms2')
-        params_inv['massa_ureia_total'] = st.number_input('Massa de Ureia (kg)', value=25.0, format="%.2f", key='mu2')
-    with col2:
-        params_inv.update({
-            'prop_glicose_biomassa': st.number_input('Proporção Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100,
-            'rend_biomassa': st.number_input('Rendimento Biomassa (g/g glicose)', value=0.678, format="%.3f", key='rb2'),
-            'rend_soforolipideo': st.number_input('Rendimento Soforolipídeo (g/g glicose)', value=0.722, format="%.3f", key='rs2'),
-            'ferment_time': st.number_input('Tempo de Fermentação (h)', value=168.0, format="%.2f", key='ft2'),
-            'seed_time': st.number_input('Tempo de Incubação Seed (h)', value=24.0, format="%.2f", key='st2'),
-            'prop_inoculo_frasco': st.number_input('Proporção Inóculo Frasco → Seed', value=0.01, format="%.2f", key='pif2'),
-            'prop_inoculo_seed': st.number_input('Proporção Inóculo Seed → Fermentador', value=0.1, format="%.2f", key='pis2'),
-            'ethanol_per_kg': st.number_input('Etanol por kg de Soforolipídeo (L/kg)', value=2.0, format="%.2f", key='epk2'),
-            'hcl_per_l': st.number_input('HCl por L de Óleo (L/L)', value=2.0, format="%.2f", key='hpl2')
-        })
-
-    with st.expander("Composição do Óleo", expanded=False):
-        composicao_oleo_inv = [
-            st.number_input('Ácido Oleico (%)', value=25.0, format="%.2f", key='ao2'),
-            st.number_input('Ácido Linoleico (%)', value=55.0, format="%.2f", key='al2'),
-            st.number_input('Ácido Palmítico (%)', value=10.0, format="%.2f", key='ap2'),
-            st.number_input('Ácido Linolênico (%)', value=7.0, format="%.2f", key='aln2'),
-            st.number_input('Ácido Esteárico (%)', value=3.0, format="%.2f", key='ae2'),
-            st.number_input('Metabolização Linoleico (%)', value=20.0, format="%.2f", key='ml2'),
-            st.number_input('Metabolização Linolênico (%)', value=10.0, format="%.2f", key='mln2')
-        ]
-
-    if st.button("Calcular Inverso", key='calc2'):
-        if params_inv['rend_soforolipideo'] == 0:
-            st.error("⚠️ O rendimento de soforolipídeo não pode ser zero.")
-        else:
-            # Glicose necessária para atingir a meta
-            glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']  # kg
-            
-            # Mols de glicose
-            mols_glicose = glicose_necessaria / (MM['glicose'] / 1000)  # mol
-            
-            # Mols de ácido oleico necessários
-            mols_oleico_necessario = mols_glicose / 4
-            
-            # Massa de ácido oleico necessária
-            massa_oleico_necessaria = mols_oleico_necessario * (MM['acidoOleico'] / 1000)  # kg
-            
-            # Composição do óleo e fatores de metabolização
-            pOleic = composicao_oleo_inv[0]
-            pLinoleic = composicao_oleo_inv[1]
-            pLinolenic = composicao_oleo_inv[3]
-            mLinoleic = composicao_oleo_inv[5]
-            mLinolenic = composicao_oleo_inv[6]
-            
-            # Efetividade total do óleo com base na composição
-            efetividade = (
-                (pOleic / 100)
-                + (pLinoleic / 100) * (mLinoleic / 100)
-                + (pLinolenic / 100) * (mLinolenic / 100)
-            )
-            
-            # Massa de óleo total necessária para fornecer o ácido oleico requerido
-            massa_oleo_total_necessaria = massa_oleico_necessaria / efetividade  # kg
-            
-            # Sacarose equivalente
-            sacarose_equivalente = glicose_necessaria * MM['sacarose'] / MM['glicose'] / 2  # kg
-            
-            # Mostrar resultados em tabela resumo
-            st.success("🧪 Resultado estimado para atingir a meta:")
-            resumo_df = pd.DataFrame({
-                'Descrição': [
-                    'Glicose necessária (kg)',
-                    'Ácido oleico necessário (kg)',
-                    'Efetividade do óleo (%)',
-                    'Óleo total necessário (kg)',
-                    'Sacarose equivalente (kg)'
-                ],
-                'Valor': [
-                    glicose_necessaria,
-                    massa_oleico_necessaria,
-                    efetividade * 100,
-                    massa_oleo_total_necessaria,
-                    sacarose_equivalente
-                ]
+        st.header("📈 Cálculo Inverso: Quantidade de insumos necessária para uma meta de produção")
+        
+        massa_soforolipideo_alvo = st.number_input("🎯 Meta de Soforolipídeo (kg)", value=100.0, format="%.2f", key='sd2')
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            params_inv = {}
+            params_inv['volume_frasco'] = st.number_input('Volume Frasco (L)', value=1.0, format="%.2f", key='vf2')
+            params_inv['volume_seed'] = st.number_input('Volume Seed (L)', value=500.0, format="%.2f", key='vs2')
+            params_inv['volume_fermentador'] = st.number_input('Volume Fermentador (L)', value=5000.0, format="%.2f", key='vferm2')
+            params_inv['massa_sacarose_total'] = st.number_input('Massa de Sacarose (kg)', value=500.0, format="%.2f", key='ms2')
+            params_inv['massa_ureia_total'] = st.number_input('Massa de Ureia (kg)', value=25.0, format="%.2f", key='mu2')
+        with col2:
+            params_inv.update({
+                'prop_glicose_biomassa': st.number_input('Proporção Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100,
+                'rend_biomassa': st.number_input('Rendimento Biomassa (g/g glicose)', value=0.678, format="%.3f", key='rb2'),
+                'rend_soforolipideo': st.number_input('Rendimento Soforolipídeo (g/g glicose)', value=0.722, format="%.3f", key='rs2'),
+                'ferment_time': st.number_input('Tempo de Fermentação (h)', value=168.0, format="%.2f", key='ft2'),
+                'seed_time': st.number_input('Tempo de Incubação Seed (h)', value=24.0, format="%.2f", key='st2'),
+                'prop_inoculo_frasco': st.number_input('Proporção Inóculo Frasco → Seed', value=0.01, format="%.2f", key='pif2'),
+                'prop_inoculo_seed': st.number_input('Proporção Inóculo Seed → Fermentador', value=0.1, format="%.2f", key='pis2'),
+                'ethanol_per_kg': st.number_input('Etanol por kg de Soforolipídeo (L/kg)', value=2.0, format="%.2f", key='epk2'),
+                'hcl_per_l': st.number_input('HCl por L de Óleo (L/L)', value=2.0, format="%.2f", key='hpl2')
             })
-            st.dataframe(resumo_df.style.format({'Valor': '{:,.2f}'}), use_container_width=True)
-            
-            # Calcular resultados completos
-            params_inv['massa_oleo_total'] = massa_oleo_total_necessaria
-            results = calcular_processo(params_inv, composicao_oleo_inv)
-            
-            st.header("Resultados Detalhados")
-            if results['frasco']['volume_excedido']:
-                st.warning("Atenção: Volume total de insumos excede o volume do frasco!")
-            if results['seed']['volume_excedido']:
-                st.warning("Atenção: Volume total de insumos excede o volume do seed!")
-            if results['fermentador']['volume_excedido']:
-                st.warning("Atenção: Volume total de insumos excede o volume do fermentador!")
-            
-            # Removido o aviso de óleo limitante
 
-            st.subheader("Resumo Comparativo")
-            df = pd.DataFrame({
-                'Etapa': ['Frasco', 'Seed', 'Fermentador'],
-                'Volume (L)': [
-                    results['frasco']['volume'],
-                    results['seed']['volume'],
-                    results['fermentador']['volume']
-                ],
-                'Sacarose Consumida (kg)': [
-                    results['frasco']['sacarose_consumida'],
-                    results['seed']['sacarose_consumida'],
-                    results['fermentador']['sacarose_consumida']
-                ],
-                'Ureia Consumida (kg)': [
-                    results['frasco']['ureia_consumida'],
-                    results['seed']['ureia_consumida'],
-                    results['fermentador']['ureia_consumida']
-                ],
-                'Açúcares Fermentáveis (kg)': [
-                    results['frasco']['acucares_fermentaveis'],
-                    results['seed']['acucares_fermentaveis'],
-                    results['fermentador']['acucares_fermentaveis']
-                ],
-                'Biomassa Produzida (kg)': [
-                    results['frasco']['biomassa_produzida'],
-                    results['seed']['biomassa_produzida'],
-                    results['fermentador']['biomassa_produzida']
-                ],
-                'Soforolipídeo Produzido (kg)': [
-                    results['frasco']['soforolipideo_produzido'],
-                    results['seed']['soforolipideo_produzido'],
-                    results['fermentador']['soforolipideo_produzido']
-                ],
-                # Agrupar as colunas relacionadas ao óleo juntas
-                'Óleo Total (kg)': [
-                    "0,00",
-                    "0,00",
-                    f"{params_inv['massa_oleo_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ],
-                'Óleo Metabolizável (kg)': [
-                    "0,00",
-                    "0,00",
-                    f"{results['fermentador']['oleo_efetivo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ],
-                'Óleo Consumido (kg)': [
-                    "0,00",
-                    "0,00",
-                    f"{results['fermentador']['oleo_consumido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ],
-                'Óleo Residual (kg)': [
-                    "0,00",
-                    "0,00",
-                    f"{results['fermentador']['oleo_residual']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ],
-                'Etanol (L)': [
-                    "0,00",
-                    "0,00",
-                    f"{results['fermentador']['ethanol']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ],
-                'HCl (L)': [
-                    "0,00",
-                    "0,00",
-                    f"{results['fermentador']['hcl']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-                ]
-            })
-            st.dataframe(df.style.format({col: '{:,.2f}' for col in df.columns if col != 'Etapa'}), use_container_width=True, height=600)
+        with st.expander("Composição do Óleo", expanded=False):
+            composicao_oleo_inv = [
+                st.number_input('Ácido Oleico (%)', value=25.0, format="%.2f", key='ao2'),
+                st.number_input('Ácido Linoleico (%)', value=55.0, format="%.2f", key='al2'),
+                st.number_input('Ácido Palmítico (%)', value=10.0, format="%.2f", key='ap2'),
+                st.number_input('Ácido Linolênico (%)', value=7.0, format="%.2f", key='aln2'),
+                st.number_input('Ácido Esteárico (%)', value=3.0, format="%.2f", key='ae2'),
+                st.number_input('Metabolização Linoleico (%)', value=20.0, format="%.2f", key='ml2'),
+                st.number_input('Metabolização Linolênico (%)', value=10.0, format="%.2f", key='mln2')
+            ]
+
+        if st.button("Calcular Inverso", key='calc2'):
+            if params_inv['rend_soforolipideo'] == 0:
+                st.error("⚠️ O rendimento de soforolipídeo não pode ser zero.")
+            else:
+                # Glicose necessária para atingir a meta
+                glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']  # kg
+                
+                # Mols de glicose
+                mols_glicose = glicose_necessaria / (MM['glicose'] / 1000)  # mol
+                
+                # Mols de ácido oleico necessários
+                mols_oleico_necessario = mols_glicose / 4
+                
+                # Massa de ácido oleico necessária
+                massa_oleico_necessaria = mols_oleico_necessario * (MM['acidoOleico'] / 1000)  # kg
+                
+                # Composição do óleo e fatores de metabolização
+                pOleic = composicao_oleo_inv[0]
+                pLinoleic = composicao_oleo_inv[1]
+                pLinolenic = composicao_oleo_inv[3]
+                mLinoleic = composicao_oleo_inv[5]
+                mLinolenic = composicao_oleo_inv[6]
+                
+                # Efetividade total do óleo com base na composição
+                efetividade = (
+                    (pOleic / 100)
+                    + (pLinoleic / 100) * (mLinoleic / 100)
+                    + (pLinolenic / 100) * (mLinolenic / 100)
+                )
+                
+                # Massa de óleo total necessária para fornecer o ácido oleico requerido
+                massa_oleo_total_necessaria = massa_oleico_necessaria / efetividade  # kg
+                
+                # Sacarose equivalente
+                sacarose_equivalente = glicose_necessaria * MM['sacarose'] / MM['glicose'] / 2  # kg
+                
+                # Mostrar resultados em tabela resumo
+                st.success("🧪 Resultado estimado para atingir a meta:")
+                resumo_df = pd.DataFrame({
+                    'Descrição': [
+                        'Glicose necessária (kg)',
+                        'Ácido oleico necessário (kg)',
+                        'Efetividade do óleo (%)',
+                        'Óleo total necessário (kg)',
+                        'Sacarose equivalente (kg)'
+                    ],
+                    'Valor': [
+                        glicose_necessaria,
+                        massa_oleico_necessaria,
+                        efetividade * 100,
+                        massa_oleo_total_necessaria,
+                        sacarose_equivalente
+                    ]
+                })
+                st.dataframe(resumo_df.style.format({'Valor': '{:,.2f}'}), use_container_width=True)
+                
+                # Calcular resultados completos
+                params_inv['massa_oleo_total'] = massa_oleo_total_necessaria
+                results = calcular_processo(params_inv, composicao_oleo_inv)
+                
+                st.header("Resultados Detalhados")
+                if results['frasco']['volume_excedido']:
+                    st.warning("Atenção: Volume total de insumos excede o volume do frasco!")
+                if results['seed']['volume_excedido']:
+                    st.warning("Atenção: Volume total de insumos excede o volume do seed!")
+                if results['fermentador']['volume_excedido']:
+                    st.warning("Atenção: Volume total de insumos excede o volume do fermentador!")
+                
+                # Removido o aviso de óleo limitante
+
+                st.subheader("Resumo Comparativo")
+                df = pd.DataFrame({
+                    'Etapa': ['Frasco', 'Seed', 'Fermentador'],
+                    'Volume (L)': [
+                        results['frasco']['volume'],
+                        results['seed']['volume'],
+                        results['fermentador']['volume']
+                    ],
+                    'Sacarose Consumida (kg)': [
+                        results['frasco']['sacarose_consumida'],
+                        results['seed']['sacarose_consumida'],
+                        results['fermentador']['sacarose_consumida']
+                    ],
+                    'Ureia Consumida (kg)': [
+                        results['frasco']['ureia_consumida'],
+                        results['seed']['ureia_consumida'],
+                        results['fermentador']['ureia_consumida']
+                    ],
+                    'Açúcares Fermentáveis (kg)': [
+                        results['frasco']['acucares_fermentaveis'],
+                        results['seed']['acucares_fermentaveis'],
+                        results['fermentador']['acucares_fermentaveis']
+                    ],
+                    'Biomassa Produzida (kg)': [
+                        results['frasco']['biomassa_produzida'],
+                        results['seed']['biomassa_produzida'],
+                        results['fermentador']['biomassa_produzida']
+                    ],
+                    'Soforolipídeo Produzido (kg)': [
+                        results['frasco']['soforolipideo_produzido'],
+                        results['seed']['soforolipideo_produzido'],
+                        results['fermentador']['soforolipideo_produzido']
+                    ],
+                    # Agrupar as colunas relacionadas ao óleo juntas
+                    'Óleo Total (kg)': [
+                        "0,00",
+                        "0,00",
+                        f"{params_inv['massa_oleo_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Óleo Metabolizável (kg)': [
+                        "0,00",
+                        "0,00",
+                        f"{results['fermentador']['oleo_efetivo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Óleo Consumido (kg)': [
+                        "0,00",
+                        "0,00",
+                        f"{results['fermentador']['oleo_consumido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Óleo Residual (kg)': [
+                        "0,00",
+                        "0,00",
+                        f"{results['fermentador']['oleo_residual']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'Etanol (L)': [
+                        "0,00",
+                        "0,00",
+                        f"{results['fermentador']['ethanol']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ],
+                    'HCl (L)': [
+                        "0,00",
+                        "0,00",
+                        f"{results['fermentador']['hcl']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ]
+                })
+                
+                st.dataframe(df, use_container_width=True, height=600)
 if __name__ == "__main__":
     main()

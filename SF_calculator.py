@@ -95,6 +95,41 @@ def calcular_volume_etapa(massa_sacarose, massa_ureia, massa_oleo, volume_maximo
     volume_total = volume_sacarose + volume_ureia + volume_oleo
     return volume_total, volume_total > volume_maximo
 
+def calcular_agua_necessaria(params, results):
+    # Calcula volume ocupado pelos sólidos em cada etapa
+    densidade_sacarose = 1.56  # g/cm³
+    densidade_ureia = 1.32  # g/cm³
+    densidade_oleo = 0.92  # g/cm³
+    
+    # Frasco
+    vol_sacarose_frasco = results['frasco']['sacarose_consumida'] * 1000 / densidade_sacarose
+    vol_ureia_frasco = results['frasco']['ureia_consumida'] * 1000 / densidade_ureia
+    vol_solidos_frasco = vol_sacarose_frasco + vol_ureia_frasco
+    agua_frasco = params['volume_frasco'] * 1000 - vol_solidos_frasco  # em mL
+    
+    # Seed
+    vol_sacarose_seed = results['seed']['sacarose_consumida'] * 1000 / densidade_sacarose
+    vol_ureia_seed = results['seed']['ureia_consumida'] * 1000 / densidade_ureia
+    vol_solidos_seed = vol_sacarose_seed + vol_ureia_seed
+    # Subtrai o volume do inóculo vindo do frasco
+    agua_seed = params['volume_seed'] * 1000 - vol_solidos_seed - results['seed']['volume_inoculo'] * 1000
+    
+    # Fermentador
+    vol_sacarose_ferm = results['fermentador']['sacarose_consumida'] * 1000 / densidade_sacarose
+    vol_ureia_ferm = results['fermentador']['ureia_consumida'] * 1000 / densidade_ureia
+    vol_oleo_ferm = results['fermentador']['oleo_inicial'] * 1000 / densidade_oleo
+    vol_solidos_ferm = vol_sacarose_ferm + vol_ureia_ferm + vol_oleo_ferm
+    # Subtrai o volume do inóculo vindo do seed
+    agua_ferm = params['volume_fermentador'] * 1000 - vol_solidos_ferm - results['fermentador']['volume_inoculo'] * 1000
+    
+    # Converte de mL para L
+    return {
+        'frasco': agua_frasco / 1000,
+        'seed': agua_seed / 1000,
+        'fermentador': agua_ferm / 1000,
+        'total': (agua_frasco + agua_seed + agua_ferm) / 1000
+    }
+
 
 def calcular_processo(params, composicao_oleo):
     total_volume = params['volume_frasco'] + params['volume_seed'] + params['volume_fermentador']
@@ -185,6 +220,9 @@ def calcular_processo(params, composicao_oleo):
             'hcl': massa_oleo_ferm * params['hcl_per_l'],
             'volume_excedido': excedido_ferm
         }
+        # Calcula a água necessária
+        agua = calcular_agua_necessaria(params, results)
+        results['agua_necessaria'] = agua
     }
     return results
 
@@ -196,6 +234,51 @@ def calcular_inverso(soforo_desejado, params, composicao_oleo):
     oleo_necessario = mols_oleo * (MM['acidoOleico'] / 1000)
     params['massa_oleo_total'] = oleo_necessario
     return calcular_processo(params, composicao_oleo)
+
+def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv):
+    # Calcula glicose necessária para atingir a meta
+    glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']
+    
+    # Mols de glicose
+    mols_glicose = glicose_necessaria / (MM['glicose'] / 1000)
+    
+    # Mols de ácido oleico necessários (estequiometria 4:1)
+    mols_oleico_necessario = mols_glicose / 4
+    
+    # Massa de ácido oleico necessária
+    massa_oleico_necessaria = mols_oleico_necessario * (MM['acidoOleico'] / 1000)
+    
+    # Calcula efetividade do óleo baseado na composição
+    pOleic = composicao_oleo_inv[0]
+    pLinoleic = composicao_oleo_inv[1]
+    pLinolenic = composicao_oleo_inv[3]
+    mLinoleic = composicao_oleo_inv[5]
+    mLinolenic = composicao_oleo_inv[6]
+    
+    efetividade = (
+        (pOleic / 100) +
+        (pLinoleic / 100) * (mLinoleic / 100) +
+        (pLinolenic / 100) * (mLinolenic / 100)
+    )
+    
+    # Massa de óleo total necessária
+    massa_oleo_total_necessaria = massa_oleico_necessaria / efetividade
+    
+    # Calcula volume do fermentador baseado na concentração típica de soforolipídeos
+    conc_soforolipideo_tipica = params_inv['conc_soforolipideo_alvo'] if 'conc_soforolipideo_alvo' in params_inv else 20  # g/L
+    volume_fermentador = massa_soforolipideo_alvo * 1000 / conc_soforolipideo_tipica
+    
+    # Dimensiona o seed e o frasco baseado nas proporções de inóculo
+    volume_seed = volume_fermentador * params_inv['prop_inoculo_seed'] * 10  # Fator de segurança 10x
+    volume_frasco = volume_seed * params_inv['prop_inoculo_frasco'] * 10  # Fator de segurança 10x
+    
+    # Atualiza os parâmetros
+    params_inv['volume_fermentador'] = volume_fermentador
+    params_inv['volume_seed'] = volume_seed
+    params_inv['volume_frasco'] = volume_frasco
+    params_inv['massa_oleo_total'] = massa_oleo_total_necessaria
+    
+    return params_inv
 
 def main():
     st.title("Calculadora de Soforolipídeos")
@@ -368,6 +451,18 @@ def main():
                     "0,00",
                     f"{results['fermentador']['hcl']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
                 ]
+                # Adiciona a tabela de água necessária
+                st.subheader("Água Necessária")
+                agua_df = pd.DataFrame({
+                    'Etapa': ['Frasco', 'Seed', 'Fermentador', 'Total'],
+                    'Água (L)': [
+                        f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                ]
+            })
+            st.dataframe(agua_df, use_container_width=True)
             })
             st.dataframe(df, use_container_width=True, height=600)
 
@@ -375,15 +470,15 @@ def main():
         st.header("📈 Cálculo Inverso: Quantidade de insumos necessária para uma meta de produção")
         
         massa_soforolipideo_alvo = st.number_input("🎯 Meta de Soforolipídeo (kg)", value=100.0, format="%.2f", key='sd2')
+        # Adiciona um campo para concentração desejada
+        conc_soforolipideo_alvo = st.number_input("Concentração de Soforolipídeo desejada (g/L)", value=20.0, format="%.2f", key='csd2')
         
         col1, col2 = st.columns(2)
         with col1:
             params_inv = {}
-            params_inv['volume_frasco'] = st.number_input('Volume Frasco (L)', value=1.0, format="%.2f", key='vf2')
-            params_inv['volume_seed'] = st.number_input('Volume Seed (L)', value=500.0, format="%.2f", key='vs2')
-            params_inv['volume_fermentador'] = st.number_input('Volume Fermentador (L)', value=5000.0, format="%.2f", key='vferm2')
             params_inv['massa_sacarose_total'] = st.number_input('Massa de Sacarose (kg)', value=500.0, format="%.2f", key='ms2')
             params_inv['massa_ureia_total'] = st.number_input('Massa de Ureia (kg)', value=25.0, format="%.2f", key='mu2')
+            params_inv['conc_soforolipideo_alvo'] = conc_soforolipideo_alvo
         with col2:
             params_inv.update({
                 'prop_glicose_biomassa': st.number_input('Proporção Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100,
@@ -412,6 +507,21 @@ def main():
             if params_inv['rend_soforolipideo'] == 0:
                 st.error("⚠️ O rendimento de soforolipídeo não pode ser zero.")
             else:
+                # Calcula tamanhos dos biorreatores
+                params_inv = calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv)
+                
+                # Exibe os tamanhos calculados dos biorreatores
+                st.success("🧪 Biorreatores dimensionados para atingir a meta:")
+                biorreatores_df = pd.DataFrame({
+                    'Biorreator': ['Frasco', 'Seed', 'Fermentador'],
+                    'Volume Calculado (L)': [
+                        f"{params_inv['volume_frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{params_inv['volume_seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{params_inv['volume_fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ]
+                })
+                st.dataframe(biorreatores_df, use_container_width=True)
+                
                 # Glicose necessária para atingir a meta
                 glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']  # kg
                 
@@ -455,14 +565,14 @@ def main():
                         'Sacarose equivalente (kg)'
                     ],
                     'Valor': [
-                        glicose_necessaria,
-                        massa_oleico_necessaria,
-                        efetividade * 100,
-                        massa_oleo_total_necessaria,
-                        sacarose_equivalente
+                        f"{glicose_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{massa_oleico_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{efetividade * 100:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{massa_oleo_total_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{sacarose_equivalente:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
                     ]
                 })
-                st.dataframe(resumo_df.style.format({'Valor': '{:,.2f}'}), use_container_width=True)
+                st.dataframe(resumo_df, use_container_width=True)
                 
                 # Calcular resultados completos
                 params_inv['massa_oleo_total'] = massa_oleo_total_necessaria
@@ -545,5 +655,17 @@ def main():
                 })
                 
                 st.dataframe(df, use_container_width=True, height=600)
+            # Adiciona a tabela de água necessária
+                st.subheader("Água Necessária")
+                agua_df = pd.DataFrame({
+                    'Etapa': ['Frasco', 'Seed', 'Fermentador', 'Total'],
+                    'Água (L)': [
+                        f"{results['agua_necessaria']['frasco']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['seed']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['fermentador']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{results['agua_necessaria']['total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ]
+                })
+                st.dataframe(agua_df, use_container_width=True)
 if __name__ == "__main__":
     main()

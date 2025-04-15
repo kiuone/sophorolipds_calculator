@@ -356,6 +356,18 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     params_inv['volume_seed'] = volume_seed
     params_inv['volume_frasco'] = volume_frasco
     params_inv['massa_oleo_total'] = massa_oleo_total_necessaria
+
+    # Calcular sacarose pela estequiometria da hidrólise
+    # 1 mol sacarose (342g) -> 1 mol glicose (180g) + 1 mol frutose (180g)
+    sacarose_necessaria = glicose_necessaria * (MM['sacarose'] / (MM['glicose'] + MM['frutose']))  # kg
+    
+    # Calcular ureia pela estequiometria da biomassa
+    # 0.2 mols glicose (36g) : 0.1 mols ureia (6g) = relação 6:1 ou 16.7%
+    ureia_necessaria = glicose_necessaria * (0.1 * MM['ureia']) / (0.2 * MM['glicose'])  # kg
+    
+    # Atualizar os parâmetros
+    params_inv['massa_sacarose_total'] = sacarose_necessaria
+    params_inv['massa_ureia_total'] = ureia_necessaria
     
     return params_inv
 
@@ -572,7 +584,8 @@ def main():
         1. O volume do fermentador é calculado com base na meta de produção e concentração desejada
         2. O volume do seed é calculado com base na proporção de inóculo necessária
         3. O volume do frasco é calculado com base na proporção de inóculo necessária
-        O fator de segurança aumenta os volumes calculados para garantir quantidade suficiente de inóculo.
+        
+            O fator de segurança aumenta os volumes calculados para garantir quantidade suficiente de inóculo.
         """)
 
         # Organizar em 3 colunas com 4 linhas cada
@@ -583,14 +596,12 @@ def main():
         with col1:
             massa_soforolipideo_alvo = st.number_input("Meta Soforolipídeo (kg)", value=100.0, format="%.2f", key='sd2')
             conc_soforolipideo_alvo = st.number_input("Conc. Soforolipídeo (g/L)", value=20.0, format="%.2f", key='csd2')
-            params_inv['massa_sacarose_total'] = st.number_input('Massa Sacarose (kg)', value=500.0, format="%.2f", key='ms2')
             params_inv['ethanol_per_kg'] = st.number_input('Etanol por kg Soforolip. (L)', value=2.0, format="%.2f", key='epk2')
             params_inv['hcl_per_l'] = st.number_input('HCl por L de Óleo (L/L)', value=2.0, format="%.2f", key='hpl2')
             params_inv['conc_soforolipideo_alvo'] = conc_soforolipideo_alvo
 
         # Coluna 2
         with col2:
-            params_inv['massa_ureia_total'] = st.number_input('Massa Ureia (kg)', value=25.0, format="%.2f", key='mu2')
             params_inv['prop_glicose_biomassa'] = st.number_input('Prop. Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100
             params_inv['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", key='rb2')
             params_inv['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f", key='rs2')
@@ -687,6 +698,8 @@ def main():
                 resumo_df = pd.DataFrame({
                     'Descrição': [
                         'Glicose necessária (kg)',
+                        'Sacarose total necessária (kg)',
+                        'Ureia total necessária (kg)',
                         'Ácido oleico necessário (kg)',
                         'Efetividade do óleo (%)',
                         'Óleo total necessário (kg)',
@@ -694,6 +707,8 @@ def main():
                     ],
                     'Valor': [
                         f"{glicose_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{params_inv['massa_sacarose_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                        f"{params_inv['massa_ureia_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{massa_oleico_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{efetividade * 100:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{massa_oleo_total_necessaria:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),

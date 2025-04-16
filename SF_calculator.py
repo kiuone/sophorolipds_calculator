@@ -412,8 +412,12 @@ def main():
         # Coluna 2
         with col2:
             params['volume_seed'] = st.number_input('Volume Seed (L)', value=500.0, format="%.2f", key='vs1')
-            params['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", key='rb1')
-            params['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f", key='rs1')
+            params['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f",
+                                                      help="quanto de célula viva (biomassa) é gerado pra cada grama de glicose consumida. Ex: 0,678 g/g = a cada 100 g de glicose gera 67,8 g de biomassa.",
+                                                      key='rb1')
+            params['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f",
+                                                           help="quanto de soforolipídeo é gerado para cada grama de glicose",
+                                                           key='rs1')
             params['ferment_time'] = st.number_input('Tempo Fermentação (h)', value=168.0, format="%.2f", key='ft1')
             params['prop_inoculo_frasco'] = st.number_input('Prop. Inóculo Frasco→Seed', value=0.01, format="%.2f", key='pif1')
 
@@ -579,14 +583,6 @@ def main():
 
     with tab2:
         st.header("Cálculo Inverso: Quantidade de insumos necessários para a meta de produção")
-        st.info("""
-        O dimensionamento dos biorreatores segue a lógica industrial:
-        1. O volume do fermentador é calculado com base na meta de produção e concentração desejada
-        2. O volume do seed é calculado com base na proporção de inóculo necessária
-        3. O volume do frasco é calculado com base na proporção de inóculo necessária
-        
-            O fator de segurança aumenta os volumes calculados para garantir quantidade suficiente de inóculo.
-        """)
 
         # Organizar em 3 colunas com 4 linhas cada
         col1, col2, col3 = st.columns(3)
@@ -603,8 +599,12 @@ def main():
         # Coluna 2
         with col2:
             params_inv['prop_glicose_biomassa'] = st.number_input('Prop. Glicose p/ Biomassa (%)', value=20.0, format="%.2f", key='pgb2') / 100
-            params_inv['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", key='rb2')
-            params_inv['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f", key='rs2')
+            params_inv['rend_biomassa'] = st.number_input('Rend. Biomassa (g/g)', value=0.678, format="%.3f", 
+                                                          help="quanto de célula viva (biomassa) é gerado pra cada grama de glicose consumida. Ex: 0,678 g/g = a cada 100 g de glicose gera 67,8 g de biomassa.",
+                                                          key='rb2')
+            params_inv['rend_soforolipideo'] = st.number_input('Rend. Soforolipídeo (g/g)', value=0.722, format="%.3f",
+                                                               help="quanto de soforolipídeo é gerado para cada grama de glicose",
+                                                               key='rs2')
             params_inv['ferment_time'] = st.number_input('Tempo Fermentação (h)', value=168.0, format="%.2f", key='ft2')
 
         # Coluna 3
@@ -626,7 +626,7 @@ def main():
             
             # Fator de segurança para dimensionamento
             fator_seguranca = st.number_input('Fator de Segurança (%)', 
-                                            value=50.0, min_value=10.0, max_value=200.0, format="%.1f", 
+                                            value=10.0, min_value=0.0, max_value=200.0, format="%.1f", 
                                             help="Percentual adicional de volume para garantir inóculo suficiente", 
                                             key='fs2')
             params_inv['fator_seguranca'] = fator_seguranca
@@ -650,7 +650,7 @@ def main():
                 params_inv = calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv)
                 
                 # Exibe os tamanhos calculados dos biorreatores
-                st.success("🧪 Biorreatores dimensionados para atingir a meta:")
+                st.success("Biorreatores dimensionados para atingir a meta:")
                 biorreatores_df = pd.DataFrame({
                     'Biorreator': ['Frasco', 'Seed', 'Fermentador'],
                     'Volume Calculado (L)': [
@@ -694,7 +694,7 @@ def main():
                 sacarose_equivalente = glicose_necessaria * MM['sacarose'] / MM['glicose'] / 2  # kg
                 
                 # Mostrar resultados em tabela resumo
-                st.success("🧪 Resultado estimado para atingir a meta:")
+                st.success("Resultado estimado para atingir a meta:")
                 resumo_df = pd.DataFrame({
                     'Descrição': [
                         'Glicose necessária (kg)',

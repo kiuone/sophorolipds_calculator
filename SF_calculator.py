@@ -291,7 +291,12 @@ def calcular_inverso(soforo_desejado, params, composicao_oleo):
 
 def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv):
     # Parte 1: Cálculo da massa de óleo necessária (mantido igual)
-    glicose_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']
+    # Calcular a glicose necessária considerando a proporção para biomassa
+    glicose_soforo_necessaria = massa_soforolipideo_alvo / params_inv['rend_soforolipideo']
+    glicose_total_necessaria = glicose_soforo_necessaria / (1 - params_inv['prop_glicose_biomassa'])
+    
+    # Atualizar a variável glicose_necessaria para usar em cálculos subsequentes
+    glicose_necessaria = glicose_total_necessaria
     mols_glicose = glicose_necessaria / (MM['glicose'] / 1000)
     mols_oleico_necessario = mols_glicose / 4
     massa_oleico_necessaria = mols_oleico_necessario * (MM['acidoOleico'] / 1000)
@@ -359,7 +364,7 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
 
     # Calcular sacarose pela estequiometria da hidrólise
     # 1 mol sacarose (342g) -> 1 mol glicose (180g) + 1 mol frutose (180g)
-    sacarose_necessaria = glicose_necessaria * (MM['sacarose'] / (MM['glicose'] + MM['frutose']))  # kg
+    sacarose_necessaria = glicose_total_necessaria * (MM['sacarose'] / (MM['glicose'] + MM['frutose']))
     
     # Calcular ureia pela estequiometria da biomassa
     # 0.2 mols glicose (36g) : 0.1 mols ureia (6g) = relação 6:1 ou 16.7%
@@ -502,6 +507,8 @@ def main():
                     'Açúcares Fermentáveis (kg)',
                     'Biomassa Produzida (kg)',
                     'Soforolipídeo Produzido (kg)',
+                    'Concentração de Soforolipídeo (g/L)',
+                    'Produtividade (g/L/h)',
                     'Óleo Total (kg)',
                     'Óleo Metabolizável (kg)',
                     'Óleo Consumido (kg)',
@@ -521,6 +528,8 @@ def main():
                     "0,00",
                     "0,00",
                     "0,00",
+                    "0,00",
+                    "0,00",
                     "0,00"
                 ],
                 'Seed': [
@@ -535,6 +544,8 @@ def main():
                     "0,00",
                     "0,00",
                     "0,00",
+                    "0,00",
+                    "0,00",
                     "0,00"
                 ],
                 'Fermentador': [
@@ -544,6 +555,8 @@ def main():
                     f"{results['fermentador']['acucares_fermentaveis']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     f"{results['fermentador']['biomassa_produzida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     f"{results['fermentador']['soforolipideo_produzido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['fermentador']['conc_soforolipideo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                    f"{results['fermentador']['produtividade']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     f"{params['massa_oleo_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     f"{results['fermentador']['oleo_efetivo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                     f"{results['fermentador']['oleo_consumido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
@@ -590,8 +603,8 @@ def main():
 
         # Coluna 1
         with col1:
-            massa_soforolipideo_alvo = st.number_input("Meta Soforolipídeo (kg)", value=100.0, format="%.2f", key='sd2')
-            conc_soforolipideo_alvo = st.number_input("Conc. Soforolipídeo (g/L)", value=20.0, format="%.2f", key='csd2')
+            massa_soforolipideo_alvo = st.number_input("Meta Soforolipídeo (kg)", value=305.0, format="%.2f", key='sd2')
+            conc_soforolipideo_alvo = st.number_input("Conc. Soforolipídeo (g/L)", value=61.0, format="%.2f", key='csd2')
             params_inv['ethanol_per_kg'] = st.number_input('Etanol por kg Soforolip. (L)', value=2.0, format="%.2f", key='epk2')
             params_inv['hcl_per_l'] = st.number_input('HCl por L de Óleo (L/L)', value=2.0, format="%.2f", key='hpl2')
             params_inv['conc_soforolipideo_alvo'] = conc_soforolipideo_alvo
@@ -739,7 +752,6 @@ def main():
                         'Ureia Consumida (kg)',
                         'Açúcares Fermentáveis (kg)',
                         'Biomassa Produzida (kg)',
-                        'Soforolipídeo Produzido (kg)',
                         'Óleo Total (kg)',
                         'Óleo Metabolizável (kg)',
                         'Óleo Consumido (kg)',
@@ -753,7 +765,6 @@ def main():
                         f"{results['frasco']['ureia_consumida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['frasco']['acucares_fermentaveis']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['frasco']['biomassa_produzida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-                        f"{results['frasco']['soforolipideo_produzido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         "0,00",
                         "0,00",
                         "0,00",
@@ -767,7 +778,6 @@ def main():
                         f"{results['seed']['ureia_consumida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['seed']['acucares_fermentaveis']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['seed']['biomassa_produzida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-                        f"{results['seed']['soforolipideo_produzido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         "0,00",
                         "0,00",
                         "0,00",
@@ -781,7 +791,6 @@ def main():
                         f"{results['fermentador']['ureia_consumida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['fermentador']['acucares_fermentaveis']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['fermentador']['biomassa_produzida']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
-                        f"{results['fermentador']['soforolipideo_produzido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{params_inv['massa_oleo_total']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['fermentador']['oleo_efetivo']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                         f"{results['fermentador']['oleo_consumido']:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),

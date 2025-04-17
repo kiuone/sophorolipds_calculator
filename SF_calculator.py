@@ -139,19 +139,30 @@ def calcular_sais_necessarios(params, results):
 
 def calcular_processo(params, composicao_oleo):
     total_volume = params['volume_frasco'] + params['volume_seed'] + params['volume_fermentador']
-    prop_frasco = params['volume_frasco'] / total_volume
-    prop_seed = params['volume_seed'] / total_volume
-    prop_ferm = params['volume_fermentador'] / total_volume
-
-    # Cálculo original
-    massa_sacarose_frasco = params['massa_sacarose_total'] * prop_frasco
-    massa_sacarose_seed = params['massa_sacarose_total'] * prop_seed
-    massa_sacarose_ferm = params['massa_sacarose_total'] * prop_ferm
     
-    # Garante o mínimo de ureia no frasco (corrige o bug de ureia zero)
-    massa_ureia_frasco = max(0.001, params['massa_ureia_total'] * prop_frasco)  # Mínimo de 1g
-    massa_ureia_seed = params['massa_ureia_total'] * prop_seed
-    massa_ureia_ferm = params['massa_ureia_total'] * prop_ferm
+    if params.get('usar_proporcoes_fixas', False):
+        # No caso do cálculo inverso, manteremos as quantidades calculadas para o fermentador
+        # em vez de recalcular proporcionalmente
+        massa_sacarose_frasco = params['massa_sacarose_total'] * params.get('prop_frasco', 0.05)
+        massa_sacarose_seed = params['massa_sacarose_total'] * params.get('prop_seed', 0.15)
+        massa_sacarose_ferm = params['massa_sacarose_total'] * params.get('prop_ferm', 0.80)
+        
+        massa_ureia_frasco = max(0.001, params['massa_ureia_total'] * params.get('prop_frasco', 0.05))
+        massa_ureia_seed = params['massa_ureia_total'] * params.get('prop_seed', 0.15)
+        massa_ureia_ferm = params['massa_ureia_total'] * params.get('prop_ferm', 0.80)
+    else:
+        # Cálculo original para o cálculo direto
+        prop_frasco = params['volume_frasco'] / total_volume
+        prop_seed = params['volume_seed'] / total_volume
+        prop_ferm = params['volume_fermentador'] / total_volume
+
+        massa_sacarose_frasco = params['massa_sacarose_total'] * prop_frasco
+        massa_sacarose_seed = params['massa_sacarose_total'] * prop_seed
+        massa_sacarose_ferm = params['massa_sacarose_total'] * prop_ferm
+        
+        massa_ureia_frasco = max(0.001, params['massa_ureia_total'] * prop_frasco)
+        massa_ureia_seed = params['massa_ureia_total'] * prop_seed
+        massa_ureia_ferm = params['massa_ureia_total'] * prop_ferm
     massa_oleo_ferm = params['massa_oleo_total']
 
     # Calcula volume ocupado pelos insumos em cada etapa
@@ -445,11 +456,11 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     # Calcular o volume do fermentador para que o meio ocupe (1 - espaco_aeracao) do volume
     volume_fermentador = volume_meio_total / (1 - espaco_aeracao) / 1000  # L
 
-    # Arredondamento do volume do fermentador para múltiplos práticos
-    if volume_fermentador > 1000:
-        volume_fermentador = round(volume_fermentador / 100) * 100
-    else:
-        volume_fermentador = round(volume_fermentador / 10) * 10
+    # # Arredondamento do volume do fermentador para múltiplos práticos
+    # if volume_fermentador > 1000:
+    #     volume_fermentador = round(volume_fermentador / 100) * 100
+    # else:
+    #     volume_fermentador = round(volume_fermentador / 10) * 10
 
     # Obter o fator de segurança (padrão: 10%)
     fator_seguranca = params_inv.get('fator_seguranca', 10) / 100  # Converte de % para decimal
@@ -479,6 +490,10 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     
     # Garantir que o frasco tenha pelo menos 1L ou 1% do seed
     volume_frasco = max(1, volume_frasco, volume_seed * 0.01)
+    total_volume = volume_frasco + volume_seed + volume_fermentador
+    prop_frasco = volume_frasco / total_volume
+    prop_seed = volume_seed / total_volume
+    prop_ferm = volume_fermentador / total_volume
 
     # Atualiza os parâmetros
     params_inv['volume_fermentador'] = volume_fermentador
@@ -488,6 +503,31 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     params_inv['massa_sacarose_total'] = sacarose_necessaria
     params_inv['massa_ureia_total'] = ureia_necessaria
 
+    params_inv['prop_frasco'] = prop_frasco
+    params_inv['prop_seed'] = prop_seed
+    params_inv['prop_ferm'] = prop_ferm
+
+    # CORREÇÃO: Armazenar o volume do meio para uso consistente nos cálculos
+    params_inv['volume_meio_total'] = volume_meio_total / 1000  # Converter para L
+    
+    # Verificar se o volume fermentador é suficiente para manter a aeração desejada
+    volume_meio_fermentador = volume_meio_total * prop_ferm / 1000  # L
+    aeracao_real = (volume_fermentador - volume_meio_fermentador) / volume_fermentador * 100
+    
+    if abs(aeracao_real - params_inv['espaco_aeracao']) > 5:
+        # Se a aeração real difere muito da desejada, ajustar para manter a consistência
+        # Este ajuste poderia ser aprimorado com um cálculo mais preciso
+        # Mas para fins de demonstração, vamos usar essa abordagem
+        volume_fermentador_ajustado = volume_meio_fermentador / (1 - espaco_aeracao)
+        params_inv['volume_fermentador'] = volume_fermentador_ajustado
+        
+        # Recalcular seed e frasco com base no novo volume de fermentador
+        volume_seed = max(50, volume_fermentador_ajustado * params_inv['prop_inoculo_seed'] * (1 + fator_seguranca))
+        params_inv['volume_seed'] = volume_seed
+        
+        volume_frasco = max(1, volume_seed * params_inv['prop_inoculo_frasco'] * (1 + fator_seguranca))
+        params_inv['volume_frasco'] = volume_frasco
+
     # Adicionar informações adicionais
     params_inv['agua_gerada'] = massa_agua_gerada
     params_inv['volume_insumos'] = volume_insumos_total / 1000  # L
@@ -495,6 +535,10 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     params_inv['volume_meio'] = volume_meio_total / 1000  # L
     params_inv['porcentagem_aeracao'] = espaco_aeracao * 100
     params_inv['aeracao_desejada'] = params_inv['porcentagem_aeracao']
+    params_inv['usar_proporcoes_fixas'] = True 
+
+    # params_inv['porcentagem_aeracao'] = espaco_aeracao * 100
+    # params_inv['aeracao_desejada'] = params_inv['porcentagem_aeracao']  # Esta linha é crucial
     
     # Calcular a concentração resultante
     concentracao_resultante = massa_soforolipideo_alvo * 1000 / volume_fermentador  # g/L
@@ -600,7 +644,8 @@ def main():
         mol_oleo_necessario = mol_glicose_soforo / 4
         massa_oleo_ideal = mol_oleo_necessario * (MM['acidoOleico'] / 1000)
 
-        st.info(f"🔍 Estimativa: Para atender à glicose disponível, são necessários aproximadamente {massa_oleo_ideal:,.2f} kg de óleo.")
+        # st.info(f"🔍 Estimativa: Para atender à glicose disponível, são necessários aproximadamente {massa_oleo_ideal:,.2f} kg de ácido oleico.\n"
+        #         f"- Óleo total recomendado: {oleo_total_estimado:,.2f} kg")
 
         with st.expander("Composição do Óleo"):
             composicao_oleo = [
@@ -612,16 +657,24 @@ def main():
                 st.number_input('Metabolização Linoleico (%)', value=20.0, format="%.2f", key='ml1'),
                 st.number_input('Metabolização Linolênico (%)', value=10.0, format="%.2f", key='mln1')
             ]
+        percentual_efetividade_estimado = composicao_oleo[0]/100 + (composicao_oleo[1]/100)*(composicao_oleo[5]/100) + (composicao_oleo[3]/100)*(composicao_oleo[6]/100)
+        oleo_total_estimado = massa_oleo_ideal / percentual_efetividade_estimado
+        st.info(
+            f"🔍 Estimativa baseada na composição do óleo:\n"
+            f"- Ácidos graxos metabolizáveis necessários: {massa_oleo_ideal:,.2f} kg\n"
+            f"- Eficiência metabólica do óleo: {percentual_efetividade_estimado*100:,.1f}%\n"
+            f"- Óleo total recomendado: {oleo_total_estimado:,.2f} kg"
+        )
 
         if st.button("Calcular", key='calc1'):
-            percentual_efetividade_estimado = composicao_oleo[0]/100 + (composicao_oleo[1]/100)*(composicao_oleo[5]/100) + (composicao_oleo[3]/100)*(composicao_oleo[6]/100)
-            oleo_total_estimado = massa_oleo_ideal / percentual_efetividade_estimado
-            st.info(
-                f"🔍 Estimativa baseada na composição do óleo:\n"
-                f"- Ácidos graxos metabolizáveis necessários: {massa_oleo_ideal:,.2f} kg\n"
-                f"- Eficiência metabólica do óleo: {percentual_efetividade_estimado*100:,.1f}%\n"
-                f"- Óleo total recomendado: {oleo_total_estimado:,.2f} kg"
-            )
+            # percentual_efetividade_estimado = composicao_oleo[0]/100 + (composicao_oleo[1]/100)*(composicao_oleo[5]/100) + (composicao_oleo[3]/100)*(composicao_oleo[6]/100)
+            # oleo_total_estimado = massa_oleo_ideal / percentual_efetividade_estimado
+            # st.info(
+            #     f"🔍 Estimativa baseada na composição do óleo:\n"
+            #     f"- Ácidos graxos metabolizáveis necessários: {massa_oleo_ideal:,.2f} kg\n"
+            #     f"- Eficiência metabólica do óleo: {percentual_efetividade_estimado*100:,.1f}%\n"
+            #     f"- Óleo total recomendado: {oleo_total_estimado:,.2f} kg"
+            # )
             results = calcular_processo(params, composicao_oleo)
             st.header("Resultados")
             if results['frasco']['volume_excedido']:
@@ -737,7 +790,7 @@ def main():
             st.info(f"Informações adicionais:\n"
             f"- Água gerada durante as reações: {results['agua_gerada']:,.2f} kg\n"
             f"- Espaço para aeração no fermentador: {results['fermentador']['percentual_aeracao']:,.1f}%\n"
-            f"- Espaço mínimo recomendado: 15.0%\n"
+            f"- Espaço mínimo de aeração recomendado: 15.0%\n"
             f"- Percentual de meio no fermentador: {100 - results['fermentador']['percentual_aeracao']:,.1f}%")
 
             # Adicionar informações de dimensionamento
@@ -783,12 +836,12 @@ def main():
         # Coluna 1
         with col1:
             massa_soforolipideo_alvo = st.number_input("Meta Soforolipídeo (kg)", value=305.0, format="%.2f", key='sd2')
-            ocupacao_maxima = st.number_input("Ocupação máxima por insumos (%)", 
-                                  value=80.0, min_value=10.0, max_value=95.0, 
-                                  format="%.1f", 
-                                  help="Percentual máximo do volume do fermentador ocupado pelos insumos sólidos. O restante será água.", 
-                                  key='om2')
-            params_inv['ocupacao_maxima'] = ocupacao_maxima
+            # ocupacao_maxima = st.number_input("Ocupação máxima por insumos (%)", 
+            #                       value=80.0, min_value=10.0, max_value=95.0, 
+            #                       format="%.1f", 
+            #                       help="Percentual máximo do volume do meio ocupado pelos insumos sólidos. O restante será água.", 
+            #                       key='om2')
+            # params_inv['ocupacao_maxima'] = ocupacao_maxima
             espaco_aeracao = st.number_input("Espaço para aeração (%)", 
                                  value=15.0, min_value=5.0, max_value=50.0, 
                                  format="%.1f", 
@@ -858,11 +911,11 @@ def main():
                     f"- Água adicionada: {params_inv['volume_agua']:.2f}L (15% do meio)\n"
                     f"- Volume total do meio: {params_inv['volume_meio']:.2f}L ({100-params_inv['porcentagem_aeracao']:.1f}% do reator)\n"
                     f"- Espaço para aeração: {params_inv['porcentagem_aeracao']:.1f}% do reator\n"
-                    f"- Água gerada durante o processo: {params_inv['agua_gerada']:.2f}kg"
+                    f"- Água gerada durante as reações: {params_inv['agua_gerada']:.2f}L"
                 )
 
                 # Exibe os tamanhos calculados dos biorreatores
-                st.success("Biorreatores dimensionados para atingir a meta:")
+                st.header("Biorreatores dimensionados para atingir a meta:")
                 biorreatores_df = pd.DataFrame({
                     'Biorreator': ['Frasco', 'Seed', 'Fermentador'],
                     'Volume Calculado (L)': [
@@ -908,7 +961,7 @@ def main():
                 sacarose_equivalente = glicose_necessaria * MM['sacarose'] / MM['glicose'] / 2  # kg
                 
                 # Mostrar resultados em tabela resumo
-                st.success("Resultado estimado para atingir a meta:")
+                st.subheader("Resultado estimado para atingir a meta:")
                 resumo_df = pd.DataFrame({
                     'Descrição': [
                         'Glicose necessária (kg)',
@@ -948,17 +1001,7 @@ def main():
                         f"- Percentual disponível: {results['fermentador']['percentual_aeracao']:.1f}%\n"
                         f"- Mínimo recomendado: 15.0%"
                     )
-                # Nova versão
-                elif results['fermentador']['percentual_aeracao'] > params_inv.get('aeracao_desejada', params_inv.get('porcentagem_aeracao', params_inv['espaco_aeracao'])) + 5:
-                    aeracao_desejada = params_inv.get('aeracao_desejada', params_inv.get('porcentagem_aeracao', params_inv['espaco_aeracao']))
-                    st.info(
-                        f"ℹ️ Há espaço disponível no fermentador:\n"
-                        f"- Aeração desejada: {aeracao_desejada:.1f}%\n"
-                        f"- Aeração disponível: {results['fermentador']['percentual_aeracao']:.1f}%\n"
-                        f"Você poderia aumentar a quantidade de meio se desejar."
-                    )
-                
-                
+
                 st.subheader("Resumo Comparativo")
 
                 # Inversão de eixos - etapas nas colunas, parâmetros nas linhas
@@ -1039,11 +1082,11 @@ def main():
                 # f"- Espaço disponível para aeração: {results['percentual_aeracao']:.1f}%\n"
                 # f"- Espaço mínimo recomendado: 15.0%")
 
-                st.info(f"Informações adicionais:\n"
-                f"- Água gerada durante as reações: {results['agua_gerada']:,.2f} kg\n"
-                f"- Espaço para aeração no fermentador: {results['fermentador']['percentual_aeracao']:,.1f}%\n"
-                f"- Espaço mínimo recomendado: 15.0%\n"
-                f"- Percentual de meio no fermentador: {100 - results['fermentador']['percentual_aeracao']:,.1f}%")
+                # st.info(f"Informações adicionais:\n"
+                # f"- Água gerada durante as reações: {results['agua_gerada']:,.2f} kg\n"
+                # f"- Espaço para aeração no fermentador: {results['fermentador']['percentual_aeracao']:,.1f}%\n"
+                # f"- Espaço mínimo recomendado: 15.0%\n"
+                # f"- Percentual de meio no fermentador: {100 - results['fermentador']['percentual_aeracao']:,.1f}%")
 
                 # Adiciona a tabela de água e sais necessários
                 st.subheader("Água e Sais Minerais Necessários")

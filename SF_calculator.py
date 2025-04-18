@@ -97,23 +97,25 @@ def calcular_volume_etapa(massa_sacarose, massa_ureia, massa_oleo, volume_maximo
     return volume_total, volume_total > (volume_maximo * 0.8) 
 
 def calcular_agua_necessaria(params, results):
-    # MODIFICAÇÃO: A água é calculada como sendo 15% do meio total
-    # Meio total = insumos (85%) + água (15%)
+    # MODIFICAÇÃO: A água é calculada com base no percentual definido pelo usuário
+    # Obter a porcentagem de água (padrão: 60%)
+    porcentagem_agua_no_meio = params.get('porcentagem_agua', 0.60)
+    porcentagem_insumos_no_meio = 1 - porcentagem_agua_no_meio
     
-    # Frasco: calcula água como 15% do meio total
+    # Frasco: calcula água com base no percentual definido
     volume_insumos_frasco = results['frasco']['volume_insumos']  # L
-    volume_meio_frasco = volume_insumos_frasco / 0.85  # Volume total do meio
-    agua_frasco = volume_meio_frasco * 0.15  # 15% do meio é água
+    volume_meio_frasco = volume_insumos_frasco / porcentagem_insumos_no_meio  # Volume total do meio
+    agua_frasco = volume_meio_frasco * porcentagem_agua_no_meio  # % do meio é água
     
-    # Seed: calcula água como 15% do meio total
+    # Seed: calcula água com base no percentual definido
     volume_insumos_seed = results['seed']['volume_insumos']  # L
-    volume_meio_seed = volume_insumos_seed / 0.85  # Volume total do meio
-    agua_seed = volume_meio_seed * 0.15  # 15% do meio é água
+    volume_meio_seed = volume_insumos_seed / porcentagem_insumos_no_meio  # Volume total do meio
+    agua_seed = volume_meio_seed * porcentagem_agua_no_meio  # % do meio é água
     
-    # Fermentador: calcula água como 15% do meio total
+    # Fermentador: calcula água com base no percentual definido
     volume_insumos_ferm = results['fermentador']['volume_insumos']  # L
-    volume_meio_ferm = volume_insumos_ferm / 0.85  # Volume total do meio
-    agua_ferm = volume_meio_ferm * 0.15  # 15% do meio é água
+    volume_meio_ferm = volume_insumos_ferm / porcentagem_insumos_no_meio  # Volume total do meio
+    agua_ferm = volume_meio_ferm * porcentagem_agua_no_meio  # % do meio é água
     
     return {
         'frasco': agua_frasco,
@@ -144,11 +146,11 @@ def calcular_processo(params, composicao_oleo):
         # No caso do cálculo inverso, manteremos as quantidades calculadas para o fermentador
         # em vez de recalcular proporcionalmente
         massa_sacarose_frasco = params['massa_sacarose_total'] * params.get('prop_frasco', 0.05)
-        massa_sacarose_seed = params['massa_sacarose_total'] * params.get('prop_seed', 0.15)
+        massa_sacarose_seed = params['massa_sacarose_total'] * params.get('prop_seed', 0.60)
         massa_sacarose_ferm = params['massa_sacarose_total'] * params.get('prop_ferm', 0.80)
         
         massa_ureia_frasco = max(0.001, params['massa_ureia_total'] * params.get('prop_frasco', 0.05))
-        massa_ureia_seed = params['massa_ureia_total'] * params.get('prop_seed', 0.15)
+        massa_ureia_seed = params['massa_ureia_total'] * params.get('prop_seed', 0.60)
         massa_ureia_ferm = params['massa_ureia_total'] * params.get('prop_ferm', 0.80)
     else:
         # Cálculo original para o cálculo direto
@@ -170,10 +172,12 @@ def calcular_processo(params, composicao_oleo):
     vol_seed_calc, excedido_seed_old = calcular_volume_etapa(massa_sacarose_seed, massa_ureia_seed, 0, params['volume_seed'])
     vol_ferm_calc, excedido_ferm_old = calcular_volume_etapa(massa_sacarose_ferm, massa_ureia_ferm, massa_oleo_ferm, params['volume_fermentador'])
 
-    # MODIFICAÇÃO: Considera que os insumos são 85% do meio e que 15% é água
+    # MODIFICAÇÃO: Considera que os insumos são 40% do meio e que 60% é água
     # O meio total (insumos + água) deve ocupar até (100% - aeração%) do volume do reator
-    porcentagem_insumos_no_meio = 0.85  # 85% do meio é composto por insumos
-    porcentagem_agua_no_meio = 0.15  # 15% do meio é composto por água
+    # MODIFICAÇÃO: Considera a porcentagem de água definida pelo usuário
+    # O meio total (insumos + água) deve ocupar até (100% - aeração%) do volume do reator
+    porcentagem_agua_no_meio = params.get('porcentagem_agua', 0.60)  # % do meio é água (padrão: 60%)
+    porcentagem_insumos_no_meio = 1 - porcentagem_agua_no_meio  # O restante são insumos
     
     # Obter o percentual de aeração (padrão: 20%)
     porcentagem_aeracao = params.get('porcentagem_aeracao', 20) / 100
@@ -183,12 +187,12 @@ def calcular_processo(params, composicao_oleo):
     volume_max_meio_seed = params['volume_seed'] * (1 - porcentagem_aeracao)
     volume_max_meio_ferm = params['volume_fermentador'] * (1 - porcentagem_aeracao)
     
-    # Volume total do meio para cada etapa (considerando insumos = 85% do meio)
+    # Volume total do meio para cada etapa (considerando insumos = 40% do meio)
     volume_meio_frasco = vol_frasco_calc / porcentagem_insumos_no_meio
     volume_meio_seed = vol_seed_calc / porcentagem_insumos_no_meio
     volume_meio_ferm = vol_ferm_calc / porcentagem_insumos_no_meio
     
-    # Volume de água para cada etapa (15% do meio)
+    # Volume de água para cada etapa (60% do meio)
     volume_agua_frasco = volume_meio_frasco * porcentagem_agua_no_meio
     volume_agua_seed = volume_meio_seed * porcentagem_agua_no_meio
     volume_agua_ferm = volume_meio_ferm * porcentagem_agua_no_meio
@@ -431,17 +435,17 @@ def calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composic
     volume_ureia = ureia_necessaria * 1000 / densidade_ureia  # cm³
     volume_oleo = massa_oleo_total_necessaria * 1000 / densidade_oleo  # cm³
     
-    # MODIFICAÇÃO: Considerar que os insumos são 85% do meio e 15% é água
+    # MODIFICAÇÃO: Considerar que os insumos são 40% do meio e 60% é água
     volume_insumos_total = volume_sacarose + volume_ureia + volume_oleo  # cm³
+
+    # MODIFICAÇÃO: Usa a proporção de água definida pelo usuário
+    porcentagem_agua_no_meio = params_inv.get('porcentagem_agua', 0.60)  # % do meio é água (padrão: 60%)
+    porcentagem_insumos_no_meio = 1 - porcentagem_agua_no_meio  # O restante são insumos
     
-    # MODIFICAÇÃO: Proporção fixa para água (15% do meio)
-    porcentagem_insumos_no_meio = 0.85  # 85% do meio é composto por insumos
-    porcentagem_agua_no_meio = 0.15  # 15% do meio é composto por água
-    
-    # Volume total do meio (considerando insumos = 85% do meio)
+    # Volume total do meio (considerando insumos = 40% do meio)
     volume_meio_total = volume_insumos_total / porcentagem_insumos_no_meio  # cm³
     
-    # Volume de água (15% do meio)
+    # Volume de água (60% do meio)
     volume_agua = volume_meio_total * porcentagem_agua_no_meio  # cm³
     
     # Obter o espaço de aeração definido pelo usuário (padrão: 20%)
@@ -584,6 +588,16 @@ def main():
             key='pa1'
         )
 
+        porcentagem_agua = st.number_input(
+            'Porcentagem de Água no Meio (%)', 
+            value=60.0, 
+            min_value=20.0, 
+            max_value=90.0, 
+            format="%.1f",
+            help="Percentual do meio que será composto por água. O restante será ocupado pelos insumos.",
+            key='pam1'
+        )
+
         # Organizar em 3 colunas com 5 linhas cada
         col1, col2, col3 = st.columns(3)
         params = {}
@@ -593,6 +607,7 @@ def main():
             # unidade_sacarose = st.selectbox("Unidade Sacarose", ["Concentração (g/L)", "Quantidade Total (kg)"], key='us1'),
             params['volume_frasco'] = st.number_input('Volume Frasco (L)', value=1.0, format="%.2f", key='vf1')
             params['porcentagem_aeracao'] = espaco_aeracao
+            params['porcentagem_agua'] = porcentagem_agua / 100
             if unidade_sacarose == "Concentração (g/L)":
                 conc_sacarose = st.number_input('Concentração Sacarose (g/L)', value=100.0, format="%.2f", key='cs1')
             else:
@@ -794,9 +809,11 @@ def main():
             f"- Percentual de meio no fermentador: {100 - results['fermentador']['percentual_aeracao']:,.1f}%")
 
             # Adicionar informações de dimensionamento
+            porcentagem_agua = params.get('porcentagem_agua', 0.60) * 100
+            porcentagem_insumos = 100 - porcentagem_agua
             st.info(f"Informações sobre dimensionamento:\n"
-            f"- Insumos calculados ocupam {results['fermentador']['volume_insumos']:,.2f}L (85% do meio)\n"
-            f"- Água adicionada: {results['fermentador']['volume_agua']:,.2f}L (15% do meio)\n"
+            f"- Insumos calculados ocupam {results['fermentador']['volume_insumos']:,.2f}L ({porcentagem_insumos:.1f}% do meio)\n"
+            f"- Água adicionada: {results['fermentador']['volume_agua']:,.2f}L ({porcentagem_agua:.1f}% do meio)\n"
             f"- Volume total do meio: {results['fermentador']['volume_meio']:,.2f}L "
             f"({100 - results['fermentador']['percentual_aeracao']:,.1f}% do reator)\n"
             f"- Espaço para aeração: {results['fermentador']['percentual_aeracao']:,.1f}% do reator")
@@ -847,6 +864,16 @@ def main():
                                  format="%.1f", 
                                  help="Percentual do volume do fermentador reservado para aeração (headspace)", 
                                  key='ea2')
+            porcentagem_agua = st.number_input(
+                'Porcentagem de Água no Meio (%)', 
+                value=60.0, 
+                min_value=15.0, 
+                max_value=90.0, 
+                format="%.1f",
+                help="Percentual do meio que será composto por água. O restante será ocupado pelos insumos.",
+                key='pam2'
+            )
+            params_inv['porcentagem_agua'] = porcentagem_agua / 100
             params_inv['espaco_aeracao'] = espaco_aeracao
             params_inv['ethanol_per_kg'] = st.number_input('Etanol por kg Soforolip. (L)', value=2.0, format="%.2f", key='epk2')
             params_inv['hcl_per_l'] = st.number_input('HCl por L de Óleo (L/L)', value=2.0, format="%.2f", key='hpl2')
@@ -905,10 +932,12 @@ def main():
                 # Calcula tamanhos dos biorreatores
                 params_inv = calcular_biorreatores_inverso(massa_soforolipideo_alvo, params_inv, composicao_oleo_inv)
 
+                porcentagem_agua = params_inv.get('porcentagem_agua', 0.60) * 100
+                porcentagem_insumos = 100 - porcentagem_agua
                 st.info(
                     f"Informações sobre dimensionamento:\n"
-                    f"- Insumos calculados ocupam {params_inv['volume_insumos']:.2f}L (85% do meio)\n"
-                    f"- Água adicionada: {params_inv['volume_agua']:.2f}L (15% do meio)\n"
+                    f"- Insumos calculados ocupam {params_inv['volume_insumos']:.2f}L ({porcentagem_insumos:.1f}% do meio)\n"
+                    f"- Água adicionada: {params_inv['volume_agua']:.2f}L ({porcentagem_agua:.1f}% do meio)\n"
                     f"- Volume total do meio: {params_inv['volume_meio']:.2f}L ({100-params_inv['porcentagem_aeracao']:.1f}% do reator)\n"
                     f"- Espaço para aeração: {params_inv['porcentagem_aeracao']:.1f}% do reator\n"
                     f"- Água gerada durante as reações: {params_inv['agua_gerada']:.2f}L"
